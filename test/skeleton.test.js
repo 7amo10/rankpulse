@@ -17,7 +17,9 @@ afterAll(() => {
   if (server) server.close();
 });
 
-describe('Milestone 2: Walking Skeleton End-to-End Tests', () => {
+describe('Milestone 2 & 3: Walking Skeleton & PDF Endpoints', () => {
+  let createdAuditId;
+
   it('[TEST 1] GET /api/health returns database connectivity status 200', async () => {
     const res = await fetch(`${BASE_URL}/api/health`);
     const data = await res.json();
@@ -50,6 +52,7 @@ describe('Milestone 2: Walking Skeleton End-to-End Tests', () => {
     expect(res.status).toBe(201);
     expect(json.data).toBeDefined();
     expect(json.data.id).toBeGreaterThan(0);
+    createdAuditId = json.data.id;
     expect(json.data.url).toBe('https://books.toscrape.com/catalogue/a-light-in-the-attic_1000/index.html');
     expect(json.data.focus_keyword).toBe('poetry');
   });
@@ -63,13 +66,17 @@ describe('Milestone 2: Walking Skeleton End-to-End Tests', () => {
   });
 
   it('[TEST 5] GET /api/audits/:id retrieves single audit details', async () => {
-    const listRes = await fetch(`${BASE_URL}/api/audits`);
-    const listJson = await listRes.json();
-    const targetId = listJson.data[0].id;
-
-    const res = await fetch(`${BASE_URL}/api/audits/${targetId}`);
+    const res = await fetch(`${BASE_URL}/api/audits/${createdAuditId}`);
     const json = await res.json();
     expect(res.status).toBe(200);
-    expect(json.data.id).toBe(targetId);
+    expect(json.data.id).toBe(createdAuditId);
+  });
+
+  it('[TEST 6] GET /api/audits/:id/pdf generates and serves PDF report with status 200', async () => {
+    const res = await fetch(`${BASE_URL}/api/audits/${createdAuditId}/pdf`);
+    expect(res.status).toBe(200);
+    expect(res.headers.get('content-type')).toBe('application/pdf');
+    const buffer = await res.arrayBuffer();
+    expect(buffer.byteLength).toBeGreaterThan(500);
   });
 });

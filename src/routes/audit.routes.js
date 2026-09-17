@@ -1,11 +1,11 @@
 import { Router } from 'express';
 import db from '../db/index.js';
 import { createAuditSchema, auditIdParamSchema } from '../schemas/audit.schema.js';
+import { generateAuditPdf } from '../services/report.service.js';
 
 const router = Router();
 
 /**
- * Milestone 2 Walking Skeleton:
  * POST /api/audits: Validates URL, creates audit in DB, returns 201 Created.
  */
 router.post('/audits', (req, res) => {
@@ -45,7 +45,7 @@ router.post('/audits', (req, res) => {
     });
 
     res.status(201).json({
-      message: 'Audit initiated successfully (Walking Skeleton)',
+      message: 'Audit initiated successfully',
       data: {
         id: newAudit.id,
         url: newAudit.url,
@@ -82,7 +82,7 @@ router.get('/audits', (req, res) => {
 });
 
 /**
- * GET /api/audits/:id: Retrieve single audit.
+ * GET /api/audits/:id: Retrieve single audit details.
  */
 router.get('/audits/:id', (req, res) => {
   const paramResult = auditIdParamSchema.safeParse(req.params);
@@ -107,6 +107,39 @@ router.get('/audits/:id', (req, res) => {
     });
   } catch (err) {
     res.status(500).json({ error: 'Failed to fetch audit: ' + err.message });
+  }
+});
+
+/**
+ * GET /api/audits/:id/pdf: Generate and download executive PDF report.
+ */
+router.get('/audits/:id/pdf', async (req, res) => {
+  const paramResult = auditIdParamSchema.safeParse(req.params);
+  if (!paramResult.success) {
+    return res.status(400).json({ error: 'Invalid audit ID parameter' });
+  }
+
+  const { id } = paramResult.data;
+  try {
+    const audit = db.query('SELECT * FROM audits WHERE id = ?').get(id);
+
+    if (!audit) {
+      return res.status(404).json({ error: `Audit with ID ${id} not found` });
+    }
+
+    const auditData = {
+      ...audit,
+      metrics: audit.metrics ? JSON.parse(audit.metrics) : {},
+      recommendations: audit.recommendations ? JSON.parse(audit.recommendations) : {}
+    };
+
+    const pdfBuffer = await generateAuditPdf(auditData);
+
+    res.setHeader('Content-Type', 'application/pdf');
+    res.setHeader('Content-Disposition', `inline; filename="rankpulse-audit-${id}.pdf"`);
+    res.send(pdfBuffer);
+  } catch (err) {
+    res.status(500).json({ error: 'Failed to generate PDF: ' + err.message });
   }
 });
 
