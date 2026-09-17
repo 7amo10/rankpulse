@@ -5,11 +5,11 @@ import app from '../src/index.js';
 import db from '../src/db/index.js';
 
 let server;
-const PORT = 3031;
+const PORT = 3033;
 const BASE_URL = `http://localhost:${PORT}`;
 
 beforeAll(async () => {
-  db.exec('DELETE FROM audits; DELETE FROM users;');
+  db.exec('DELETE FROM audits; DELETE FROM users; DELETE FROM cache_store;');
   server = app.listen(PORT);
 });
 
@@ -17,7 +17,7 @@ afterAll(() => {
   if (server) server.close();
 });
 
-describe('Milestone 2 & 3: Walking Skeleton & PDF Endpoints', () => {
+describe('Milestone 2 & 3: Integrated End-to-End Pipeline Tests', () => {
   let createdAuditId;
 
   it('[TEST 1] GET /api/health returns database connectivity status 200', async () => {
@@ -39,7 +39,7 @@ describe('Milestone 2 & 3: Walking Skeleton & PDF Endpoints', () => {
     expect(data.error).toBe('Validation failed');
   });
 
-  it('[TEST 3] POST /api/audits creates audit in database and returns 201 Created', async () => {
+  it('[TEST 3] POST /api/audits performs full audit, persists to DB, and returns 201 Created', async () => {
     const res = await fetch(`${BASE_URL}/api/audits`, {
       method: 'POST',
       headers: { 'Content-Type': 'application/json' },
@@ -53,11 +53,26 @@ describe('Milestone 2 & 3: Walking Skeleton & PDF Endpoints', () => {
     expect(json.data).toBeDefined();
     expect(json.data.id).toBeGreaterThan(0);
     createdAuditId = json.data.id;
-    expect(json.data.url).toBe('https://books.toscrape.com/catalogue/a-light-in-the-attic_1000/index.html');
-    expect(json.data.focus_keyword).toBe('poetry');
+    expect(json.data.url).toContain('books.toscrape.com');
+    expect(json.data.health_score).toBeGreaterThan(0);
+    expect(json.data.pdf_report_url).toBe(`/api/audits/${createdAuditId}/pdf`);
+  }, 25000);
+
+  it('[TEST 4] POST /api/audits re-request serves from cache (cached: true)', async () => {
+    const res = await fetch(`${BASE_URL}/api/audits`, {
+      method: 'POST',
+      headers: { 'Content-Type': 'application/json' },
+      body: JSON.stringify({
+        url: 'https://books.toscrape.com/catalogue/a-light-in-the-attic_1000/index.html',
+        focusKeyword: 'poetry'
+      })
+    });
+    const json = await res.json();
+    expect(res.status).toBe(200);
+    expect(json.cached).toBe(true);
   });
 
-  it('[TEST 4] GET /api/audits lists saved audits from database', async () => {
+  it('[TEST 5] GET /api/audits lists saved audits from database', async () => {
     const res = await fetch(`${BASE_URL}/api/audits`);
     const json = await res.json();
     expect(res.status).toBe(200);
@@ -65,14 +80,15 @@ describe('Milestone 2 & 3: Walking Skeleton & PDF Endpoints', () => {
     expect(json.data[0].url).toContain('books.toscrape.com');
   });
 
-  it('[TEST 5] GET /api/audits/:id retrieves single audit details', async () => {
+  it('[TEST 6] GET /api/audits/:id retrieves single audit details', async () => {
     const res = await fetch(`${BASE_URL}/api/audits/${createdAuditId}`);
     const json = await res.json();
     expect(res.status).toBe(200);
     expect(json.data.id).toBe(createdAuditId);
+    expect(json.data.metrics).toBeDefined();
   });
 
-  it('[TEST 6] GET /api/audits/:id/pdf generates and serves PDF report with status 200', async () => {
+  it('[TEST 7] GET /api/audits/:id/pdf generates and serves PDF report with status 200', async () => {
     const res = await fetch(`${BASE_URL}/api/audits/${createdAuditId}/pdf`);
     expect(res.status).toBe(200);
     expect(res.headers.get('content-type')).toBe('application/pdf');

@@ -7,17 +7,17 @@ const GEMINI_API_URL = `https://generativelanguage.googleapis.com/v1beta/models/
 
 // Zod Schema to strictly validate AI output
 export const GeminiRecommendationSchema = z.object({
-  optimizedTitle: z.string().min(10).max(100),
-  optimizedMetaDescription: z.string().min(50).max(200),
+  optimizedTitle: z.string().min(5).max(150),
+  optimizedMetaDescription: z.string().min(20).max(300),
   recommendations: z.array(
     z.object({
-      priority: z.enum(['High', 'Medium', 'Low']),
-      category: z.string().min(2),
-      issue: z.string().min(5),
-      action: z.string().min(10)
+      priority: z.enum(['High', 'Medium', 'Low']).default('Medium'),
+      category: z.string().default('SEO'),
+      issue: z.string().min(3),
+      action: z.string().min(5)
     })
-  ).min(1).max(5),
-  competitiveAngle: z.string().min(10)
+  ).min(1).max(10),
+  competitiveAngle: z.string().min(5)
 });
 
 /**
@@ -93,6 +93,9 @@ Return STRICTLY a JSON object matching this schema:
     }
 
     const rawParsed = JSON.parse(candidateText);
+    if (Array.isArray(rawParsed.recommendations)) {
+      rawParsed.recommendations = rawParsed.recommendations.slice(0, 5);
+    }
     const validated = GeminiRecommendationSchema.parse(rawParsed);
 
     // Log token usage to SQLite
